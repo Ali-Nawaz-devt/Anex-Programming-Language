@@ -1,0 +1,11 @@
+unit Main {
+    int a = 5;
+    bool b = a > 3;
+    text t = "ok";
+    emit(a);
+    emit(b);
+    emit(t);
+}
+
+
+

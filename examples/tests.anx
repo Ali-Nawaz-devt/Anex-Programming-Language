@@ -1,0 +1,17 @@
+unit Main {
+
+    func fact(n) {
+        if n <= 1 {
+            return 1;
+        }
+        return n * fact(n - 1);
+    }
+
+    emit("Enter number:");
+    int x = admit;
+
+    int result = fact(x);
+
+    emit("Factorial is:");
+    emit(result);
+}
