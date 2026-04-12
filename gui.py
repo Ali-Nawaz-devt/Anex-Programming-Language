@@ -5,6 +5,7 @@ Run     : cd anex && python gui.py
 """
 
 import sys, os, re, time, threading
+from typing import Optional, Callable
 sys.path.insert(0, os.path.dirname(__file__))
 
 import customtkinter as ctk
@@ -176,7 +177,148 @@ unit Main {
         i = i + 1;
     }
 }""",
+    "User Input": """unit Main {
+    emit("Enter a number:");
+    int n = admit;
+
+    emit("You entered:");
+    emit(n);
+
+    int doubled = n * 2;
+    emit("Doubled:");
+    emit(doubled);
+
+    if n > 10 {
+        emit("Greater than 10!");
+    } else {
+        emit("10 or less.");
+    }
+}""",
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ADMIT DIALOG  — shown when ANEX code uses  admit  (read integer input)
+# ══════════════════════════════════════════════════════════════════════════════
+class AdmitDialog(ctk.CTkToplevel):
+    """
+    Modal dialog that pauses the interpreter thread and asks for integer input.
+    `last_emit` — the last thing the program emitted (shown as context).
+    If None, no context line is shown.
+    """
+
+    def __init__(self, master, last_emit: str | None = None):
+        super().__init__(master)
+        self.title("ANEX  ·  admit — User Input")
+        self.resizable(False, False)
+        self.configure(fg_color="#12132a")
+
+        # size depends on whether we show context
+        w = 420
+        h = 230 if last_emit else 200
+        px = master.winfo_rootx() + (master.winfo_width()  - w) // 2
+        py = master.winfo_rooty() + (master.winfo_height() - h) // 2
+        self.geometry(f"{w}x{h}+{px}+{py}")
+
+        self._result: int = 0
+
+        # ── header bar ────────────────────────────────────────────────────
+        hdr = tk.Frame(self, bg="#1a1c3a", height=42)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text="⌨   admit  —  enter an integer",
+                 font=("Helvetica", 12, "bold"),
+                 bg="#1a1c3a", fg=C["cyan"]).pack(side="left", padx=16, pady=10)
+
+        # ── body ──────────────────────────────────────────────────────────
+        body = tk.Frame(self, bg="#12132a")
+        body.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # context: last emit() output — only shown if available
+        if last_emit:
+            ctx = tk.Frame(body, bg="#1a2a1a", padx=10, pady=6)
+            ctx.pack(fill="x", pady=(0, 10))
+            tk.Label(ctx, text="Program says:",
+                     font=("Helvetica", 8),
+                     bg="#1a2a1a", fg=C["muted"]).pack(anchor="w")
+            tk.Label(ctx, text=f'  {last_emit}',
+                     font=("Courier New", 12, "bold"),
+                     bg="#1a2a1a", fg=C["green"]).pack(anchor="w")
+
+        tk.Label(body, text="Type an integer and press Enter or Submit:",
+                 font=("Helvetica", 10),
+                 bg="#12132a", fg=C["text"]).pack(anchor="w", pady=(0, 6))
+
+        # ── entry — use plain tk.Entry for reliable text visibility ───────
+        entry_frame = tk.Frame(body, bg=C["cyan"], padx=2, pady=2)
+        entry_frame.pack(fill="x", pady=(0, 12))
+
+        self._var = tk.StringVar()
+        self._entry = tk.Entry(
+            entry_frame,
+            textvariable=self._var,
+            font=("Courier New", 14),
+            bg="#0d1a0d",        # very dark green bg
+            fg="#00ffaa",        # bright green text — clearly visible
+            insertbackground="#00ffaa",   # cursor same colour
+            relief="flat", bd=0,
+            highlightthickness=0)
+        self._entry.pack(fill="x", ipady=6, padx=2)
+        self._entry.bind("<Return>",   lambda _: self._submit())
+        self._entry.bind("<KP_Enter>", lambda _: self._submit())
+
+        # ── error label (hidden until needed) ─────────────────────────────
+        self._err_lbl = tk.Label(body, text="",
+                                  font=("Helvetica", 9),
+                                  bg="#12132a", fg=C["red"])
+        self._err_lbl.pack(anchor="w", pady=(0, 4))
+
+        # ── buttons ───────────────────────────────────────────────────────
+        btn_row = tk.Frame(body, bg="#12132a")
+        btn_row.pack(fill="x")
+
+        tk.Button(btn_row, text="Cancel  (returns 0)",
+                  font=("Helvetica", 10),
+                  bg="#1a1c3a", fg=C["muted"],
+                  activebackground="#252740", activeforeground=C["text"],
+                  relief="flat", bd=0, padx=12, pady=6, cursor="hand2",
+                  command=self._cancel).pack(side="left")
+
+        tk.Button(btn_row, text="  ✓  Submit  ",
+                  font=("Helvetica", 11, "bold"),
+                  bg=C["cyan"], fg="#0a0b1c",
+                  activebackground="#55eeff", activeforeground="#0a0b1c",
+                  relief="flat", bd=0, padx=14, pady=6, cursor="hand2",
+                  command=self._submit).pack(side="right")
+
+        self._entry.focus_set()
+        self.grab_set()
+        self.lift()
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+    def _submit(self):
+        raw = self._var.get().strip()
+        try:
+            self._result = int(raw)
+        except ValueError:
+            self._err_lbl.configure(text="⚠  Please enter a whole number  (e.g. 5, -3, 100)")
+            self._entry.configure(bg="#2a0d0d", fg="#ff6666")
+            self._var.set("")
+            self._entry.focus_set()
+            return
+        self.grab_release()
+        self.destroy()
+
+    def _cancel(self):
+        self._result = 0
+        self.grab_release()
+        self.destroy()
+
+    @staticmethod
+    def ask(master, last_emit: str | None = None) -> int:
+        dlg = AdmitDialog(master, last_emit)
+        master.wait_window(dlg)
+        return dlg._result
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  TRACING INTERPRETER
@@ -191,6 +333,7 @@ class TracingInterpreter(Interpreter):
         self.func_return_vals:  dict                 = {}   # name→last return
         self.call_stack:        list                 = []   # [{name,params,locals}]
         self._scope_stack:      list                 = ["global"]
+        self._input_callback: Optional[Callable[[str], int]] = None
 
     def _s(self, kind: str, msg: str) -> None:
         self.steps.append((kind, msg))
@@ -316,6 +459,15 @@ class TracingInterpreter(Interpreter):
             v = self.eval_expr(expr.expr)
             self._s("eval", f"not {v}  =  {not v}")
             return not v
+
+        # admit — user input
+        if isinstance(expr, tuple) and expr[0] == "admit":
+            if self._input_callback:
+                val = self._input_callback("Program reached  admit  — enter an integer:")
+            else:
+                val = int(input("admit > "))
+            self._s("visit", f"admit  ←  user entered  {val}")
+            return val
 
         return super().eval_expr(expr)
 
@@ -1964,7 +2116,24 @@ class AnexDebugger(ctk.CTk):
         self.after(260, lambda: self._render_codegen(cg_result))
 
         # INTERPRET
+        # thread-safe admit: interpreter thread signals main thread via Event
+        _admit_result: list          = [0]
+        _admit_event:  threading.Event = threading.Event()
+        def _ask_input(prompt: str) -> int:
+            _admit_event.clear()
+            self.after(0, _show_dialog)
+            _admit_event.wait()          # pause background thread
+            return _admit_result[0]
+
+        def _show_dialog():
+            # pass last emit() output as context — None if nothing emitted yet
+            last = interp.outputs[-1] if interp.outputs else None
+            val = AdmitDialog.ask(self, last)
+            _admit_result[0] = val
+            _admit_event.set()           # resume background thread
+
         interp = TracingInterpreter()
+        interp._input_callback = _ask_input
         err_msg = None
         try:
             interp.run(prog)
